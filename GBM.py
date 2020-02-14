@@ -38,7 +38,8 @@ def calc_accuracy(pred, truth):
     return specificity, sensitivity, overall
 
 # load datasets
-folder = "BrainCancer/Data"
+# folder = "BrainCancer/Data"
+folder = "data"
 survival_outcome1 = np.loadtxt(f"{folder}/sc1_Phase1_GE_Outcome.tsv", skiprows=1, usecols=1, dtype="int")
 expression = pd.read_csv(f"{folder}/sc1_Phase1_GE_FeatureMatrix.tsv", header = 0, index_col = 0, sep = "\t")
 phenotype1 = pd.read_csv(f"{folder}/sc1_Phase1_GE_Phenotype.tsv", header = 0, index_col = 0, sep = "\t", na_values = [" ", ""])
@@ -70,8 +71,8 @@ X_train_sc2, X_test_sc2, y_train_sc2, y_test_sc2 = train_test_split(sc2, surviva
 # sub-challenge 1
 # ----------------------------------------------------
 
-dtrain = xgb.DMatrix(X_train_sc1, label = y_train_sc1)
-dtest = xgb.DMatrix(X_test_sc1, label = y_test_sc1)
+# dtrain = xgb.DMatrix(X_train_sc1, label = y_train_sc1)
+# dtest = xgb.DMatrix(X_test_sc1, label = y_test_sc1)
 
 # fit by logistic with lasso
 
@@ -118,8 +119,8 @@ for fname in sorted_features_by_xgb[::-1]:
 # sub-challenge 2
 # ----------------------------------------------------
 
-dtrain2 = xgb.DMatrix(X_train_sc2, label = y_train_sc2)
-dtest2 = xgb.DMatrix(X_test_sc2, label = y_test_sc2)
+# dtrain2 = xgb.DMatrix(X_train_sc2, label = y_train_sc2)
+# dtest2 = xgb.DMatrix(X_test_sc2, label = y_test_sc2)
 
 cvfit2 = cvglmnet(x = X_train_sc2.values.copy(), y = y_train_sc2.astype("float").copy(), family = "binomial", alpha = 1)#, weights = y_train_sc2.reshape((-1,1))*1.0 + 1)
 preds2 = cvglmnetPredict(cvfit2, X_test_sc2.values, s = 'lambda_min', ptype = "class").reshape(1, -1)[0]
@@ -141,7 +142,7 @@ bst2 = xgb.train(param, dtrain2_lasso, num_round, evals = evallist2_lasso)
 #bst2 = xgb.train(param, dtrain2_lasso, num_round, evals = evallist2_lasso, early_stopping_rounds = 10000)
 #num_round = 4000
 #bst = xgb.train(param, dtrain_lasso, num_round, evals = evallist_lasso)
-preds2 = bst2.predict(dtest2_lasso)
+#preds2 = bst2.predict(dtest2_lasso)
 print(calc_accuracy( (preds2 > 0.5) * 1, y_test_sc2))
 confusion_matrix((preds2 > 0.5) * 1, y_test_sc2)
 
@@ -193,3 +194,52 @@ print(calc_accuracy( (preds3 > 0.5) * 1, y_test_sc3))
 confusion_matrix((preds3 > 0.5) * 1, y_test_sc3)
 fpr, tpr, thres = roc_curve(y_test_sc3, preds3)
 auc(fpr, tpr) 
+
+
+# ----------------------------------------------------
+# Phase 2
+# ----------------------------------------------------
+p2_expression = pd.read_csv(f"{folder}/sc1_Phase2_GE_FeatureMatrix.tsv", header = 0, index_col = 0, sep = "\t")
+p2_phenotype1 = pd.read_csv(f"{folder}/sc1_Phase2_GE_Phenotype.tsv", header = 0, index_col = 0, sep = "\t", na_values = [" ", ""])
+p2_dummy_phenotype1 = pd.get_dummies(p2_phenotype1.copy()) 
+
+# predict sc1
+p2_diff_cols = np.setdiff1d(dummy_phenotype1.columns.values, p2_dummy_phenotype1.columns.values)
+p2_diff_cols_pd = pd.DataFrame(np.zeros((p2_dummy_phenotype1.shape[0], len(p2_diff_cols))),
+                            columns = p2_diff_cols)
+p2_diff_cols_pd.index = p2_dummy_phenotype1.index
+p2_dummy_phenotype1_extend = pd.concat([p2_dummy_phenotype1, p2_diff_cols_pd], axis = 1)[dummy_phenotype1.columns.values]
+p2_Xtest = pd.concat([p2_expression, p2_dummy_phenotype1_extend], axis = 1)
+
+p2_preds1 = (bst.predict(xgb.DMatrix(p2_Xtest.values[:, lasso_idx - 1])) > 0.5) * 1
+np.savetxt("subchallenge_1.tsv", np.hstack((p2_expression.index.values.reshape(-1,1), p2_preds1.astype("int").reshape(-1, 1))), delimiter='\t', fmt = "%s")
+
+# predict sc2
+p2_copy_number = pd.read_csv(f"{folder}/sc2_Phase2_CN_FeatureMatrix.tsv", header = 0, index_col = 0, sep = "\t")
+p2_phenotype2 = pd.read_csv(f"{folder}/sc2_Phase2_CN_Phenotype.tsv", header = 0, index_col = 0, sep = "\t", na_values = [" ", ""])
+p2_dummy_phenotype2 = pd.get_dummies(p2_phenotype2.copy())
+
+p2_diff_cols2 = np.setdiff1d(dummy_phenotype2.columns.values, p2_dummy_phenotype2.columns.values)
+p2_diff_cols2_pd = pd.DataFrame(np.zeros((p2_dummy_phenotype2.shape[0], len(p2_diff_cols2))), columns = p2_diff_cols2)
+p2_diff_cols2_pd.index = p2_dummy_phenotype2.index
+p2_dummy_phenotype2_extend = pd.concat([p2_dummy_phenotype2, p2_diff_cols2_pd], axis = 1)[dummy_phenotype2.columns.values]
+p2_Xtest2 = pd.concat([p2_copy_number, p2_dummy_phenotype2_extend], axis = 1)
+
+p2_preds2 = cvglmnetPredict(cvfit2, p2_Xtest2.values, s = "lambda_min", ptype = "class")
+# or directly use the majority rule
+# p2_preds2 = np.ones(p2_copy_number.shape[0])
+np.savetxt("subchallenge_2.tsv", np.hstack((p2_copy_number.index.values.reshape(-1,1), p2_preds2.astype("int").reshape(-1, 1))), delimiter='\t', fmt = "%s")
+
+p2_cn_ge = pd.read_csv(f"{folder}/sc3_Phase2_CN_GE_FeatureMatrix.tsv", header = 0, index_col = 0, sep = "\t")
+p2_phenotype3 = pd.read_csv(f"{folder}/sc3_Phase2_CN_GE_Phenotype.tsv", header = 0, index_col = 0, sep = "\t", na_values = [" ", ""])
+p2_dummy_phenotype3 = pd.get_dummies(p2_phenotype3.copy()) 
+
+p2_diff_cols3 = np.setdiff1d(dummy_phenotype1.columns.values, p2_dummy_phenotype3.columns.values)
+p2_diff_cols3_pd = pd.DataFrame(np.zeros((p2_dummy_phenotype3.shape[0], len(p2_diff_cols3))),
+                            columns = p2_diff_cols3)
+p2_diff_cols3_pd.index = p2_dummy_phenotype3.index
+p2_dummy_phenotype3_extend = pd.concat([p2_dummy_phenotype3, p2_diff_cols3_pd], axis = 1)[dummy_phenotype1.columns.values]
+p2_Xtest3 = pd.concat([p2_cn_ge, p2_dummy_phenotype3_extend], axis = 1)
+
+p2_preds3 = (bst3.predict(xgb.DMatrix(p2_Xtest3.values[:, features_selected_from_sc1])) > 0.5)* 1.0
+np.savetxt("subchallenge_3.tsv", np.hstack((p2_cn_ge.index.values.reshape(-1,1), p2_preds3.astype("int").reshape(-1, 1))), delimiter='\t', fmt = "%s")
