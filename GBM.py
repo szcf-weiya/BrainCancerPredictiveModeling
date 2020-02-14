@@ -212,7 +212,8 @@ p2_dummy_phenotype1_extend = pd.concat([p2_dummy_phenotype1, p2_diff_cols_pd], a
 p2_Xtest = pd.concat([p2_expression, p2_dummy_phenotype1_extend], axis = 1)
 
 p2_preds1 = (bst.predict(xgb.DMatrix(p2_Xtest.values[:, lasso_idx - 1])) > 0.5) * 1
-np.savetxt("subchallenge_1.tsv", np.hstack((p2_expression.index.values.reshape(-1,1), p2_preds1.astype("int").reshape(-1, 1))), delimiter='\t', fmt = "%s")
+header = np.array(["PATIENTID", "SURVIVAL_STATUS"])
+np.savetxt("subchallenge_1.tsv", np.vstack((header, np.hstack((p2_expression.index.values.reshape(-1,1), p2_preds1.astype("int").reshape(-1, 1))))), delimiter='\t', fmt = "%s")
 
 # predict sc2
 p2_copy_number = pd.read_csv(f"{folder}/sc2_Phase2_CN_FeatureMatrix.tsv", header = 0, index_col = 0, sep = "\t")
@@ -228,7 +229,7 @@ p2_Xtest2 = pd.concat([p2_copy_number, p2_dummy_phenotype2_extend], axis = 1)
 p2_preds2 = cvglmnetPredict(cvfit2, p2_Xtest2.values, s = "lambda_min", ptype = "class")
 # or directly use the majority rule
 # p2_preds2 = np.ones(p2_copy_number.shape[0])
-np.savetxt("subchallenge_2.tsv", np.hstack((p2_copy_number.index.values.reshape(-1,1), p2_preds2.astype("int").reshape(-1, 1))), delimiter='\t', fmt = "%s")
+np.savetxt("subchallenge_2.tsv", np.vstack((header, np.hstack((p2_copy_number.index.values.reshape(-1,1), p2_preds2.astype("int").reshape(-1, 1))))), delimiter='\t', fmt = "%s")
 
 p2_cn_ge = pd.read_csv(f"{folder}/sc3_Phase2_CN_GE_FeatureMatrix.tsv", header = 0, index_col = 0, sep = "\t")
 p2_phenotype3 = pd.read_csv(f"{folder}/sc3_Phase2_CN_GE_Phenotype.tsv", header = 0, index_col = 0, sep = "\t", na_values = [" ", ""])
@@ -242,4 +243,4 @@ p2_dummy_phenotype3_extend = pd.concat([p2_dummy_phenotype3, p2_diff_cols3_pd], 
 p2_Xtest3 = pd.concat([p2_cn_ge, p2_dummy_phenotype3_extend], axis = 1)
 
 p2_preds3 = (bst3.predict(xgb.DMatrix(p2_Xtest3.values[:, features_selected_from_sc1])) > 0.5)* 1.0
-np.savetxt("subchallenge_3.tsv", np.hstack((p2_cn_ge.index.values.reshape(-1,1), p2_preds3.astype("int").reshape(-1, 1))), delimiter='\t', fmt = "%s")
+np.savetxt("subchallenge_3.tsv", np.vstack((header,np.hstack((p2_cn_ge.index.values.reshape(-1,1), p2_preds3.astype("int").reshape(-1, 1))))), delimiter='\t', fmt = "%s")
